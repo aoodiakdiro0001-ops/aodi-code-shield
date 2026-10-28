@@ -1,0 +1,18 @@
+{
+  "_note": "Optional Code-Shield config. Place as `.codeshield.yml`/`codeshield.json` at a repo root to tune the scan. Everything is OFF by default (scan everything); this file only ever NARROWS scope — it can never make the scanner execute code or bypass redaction.",
+  "include_tests": false,
+  "fail_on": "critical",
+  "ignore_rules": [
+    "CS-CONF-DEBUG"
+  ],
+  "ignore_paths": [
+    "examples/vuln/",
+    "fixtures/",
+    "third_party/"
+  ],
+  "allow_secrets_in": [
+    ".env.example",
+    "tests/fixtures/"
+  ],
+  "_comment_secrets": "A file in allow_secrets_in still gets its value REDACTED in reports; this only suppresses the 'credential file present' banner for documented example files."
+}

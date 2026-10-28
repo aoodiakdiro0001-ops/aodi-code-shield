@@ -1,0 +1,20 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# secrets & local artifacts — never commit
+.env
+.env.*
+secrets/
+*.token
+
+# os
+.DS_Store
+
+# scan outputs (may reference real repos/paths)
+CODESHIELD_AUDIT.md
+*.audit.html
+*.audit.json

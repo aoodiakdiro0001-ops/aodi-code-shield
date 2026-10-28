@@ -1,0 +1,89 @@
+# Code-Shield Actions — the free auditor that runs on every push / pull request.
+#
+# Triggers:
+#   pull_request: scan the changed code, post an audit comment on the PR.
+#   push:          scan the branch, write a report artifact.
+#   workflow_dispatch: on-demand scan of the repo.
+#
+# Free-tier math: public repos get UNLIMITED Actions minutes. A ~20s scan per
+# PR is comfortably free.
+#
+# SECRETS (Settings -> Secrets -> Actions), all optional:
+#   TELEGRAM_TOKEN    + TELEGRAM_CHAT_ID   -> send a redacted alert
+#   GROQ_API_KEY / GEMINI_API_KEY          -> AI-phrased remediation (else offline)
+#
+# The GitHub token is provided automatically; the workflow only ever POSTS a
+# comment or writes a report artifact — it never pushes to main or merges.
+
+name: security-audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read          # scan only; no code push
+  pull-requests: write    # to post the audit comment
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history so we can scope the PR diff
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Doctor
+        run: python -m code_shield.cli doctor || true
+
+      - name: Scan repository (fail on critical)
+        # fail the job only on CRITICAL findings (e.g. a committed AWS key).
+        # lower severities are reported, not blocking — avoids false-positive
+        # CI breakage while still stopping a leaked credential.
+        run: python -m code_shield.cli scan . --fail-on critical --include-tests
+
+      - name: Write HTML + JSON report artifacts
+        if: always()
+        run: |
+          python -m code_shield.cli report . --out codeshield-report.html --include-tests || true
+          python -m code_shield.cli report . --out codeshield-report.json --include-tests || true
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeshield-report
+          path: |
+            codeshield-report.html
+            codeshield-report.json
+
+      - name: Post audit comment on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import os
+          from code_shield import cli
+          # reuse the CLI's scan path, then post a comment on this PR
+          pr = os.environ.get("PR_NUMBER") or "${{ github.event.pull_request.number }}"
+          cli.main(["comment", ".", "--pr", str(pr),
+                    "--repo", os.environ["GITHUB_REPO"], "--include-tests"])
+          PY
+
+      - name: Send Telegram alert (if configured)
+        if: env.TELEGRAM_TOKEN != ''
+        run: python -m code_shield.cli notify . --include-tests || true
