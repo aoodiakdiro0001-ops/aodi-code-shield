@@ -1,0 +1,14 @@
+{
+  "_note": "Code-Shield's own repo config. These paths hold INTENTIONAL fixtures by design — the audit must not flag them. Redaction is unaffected (config can only narrow scope).",
+  "fail_on": "critical",
+  "ignore_paths": [
+    "examples/vuln/",
+    "tests/"
+  ],
+  "ignore_rules": [
+    "CS-CONF-DEBUG"
+  ],
+  "_comment_demo": "examples/vuln/ = the deliberately vulnerable demo shipped for docs/tests (fake AWS key, injection samples).",
+  "_comment_tests": "tests/ = regression-test literals (fake secrets like DB_PASSWORD=hunter2secret99 assert the redaction/detection contracts).",
+  "_comment_debug": "CS-CONF-DEBUG: the README detection table mentions `DEBUG = True` as documentation text."
+}
